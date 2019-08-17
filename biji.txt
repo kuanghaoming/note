@@ -1,0 +1,1442 @@
+virt-manager    打开虚拟系统管理器
+
+
+16      4.11	client2
+17		4.6  2.5 	proxy2
+18		2.110		web3
+19		2.210		web4
+
+/linux-soft/02
+拷包 	lnmp_soft.tar.gz
+
+1,安装 gcc pcre-devel openssl-devel 需要的依赖包
+2,创建一个用户
+3,解源码包 tar
+4,./configure 脚本安装源码包
+> --prefix=/usr/local/nginx\  //指定安装路径
+> --user=nginx \       			//指定用户
+> --group=nginx  \              //指定组
+> --with-http_ssl_module      //开启SSL加密
+
+5, make && make install    //编译安装
+
+***************************************
+没有安装源码编译依赖包软件
+checking for OS
+ + Linux 3.10.0-862.el7.x86_64 x86_64
+checking for C compiler ... not found
+
+./configure: error: C compiler cc is not found
+
+
+80端口已经占用
+nginx: [emerg] bind() to 0.0.0.0:80 failed (98: Address already in use)
+***************************************
+/usr/local/nginx/sbin/nginx                    //启动服务
+/usr/local/nginx/sbin/nginx -s stop            //关闭服务
+ /usr/local/nginx/sbin/nginx -s reload        //重新加载配置文件
+/usr/local/nginx/sbin/nginx -V           //查看软件信息
+ln -s /usr/local/nginx/sbin/nginx /sbin/        //制作软链接 ,方便后期使用
+
+******************************************
+
+netstat命令可以查看系统中启动的端口信息，该命令常用选项如下：
+-a显示所有端口的信息
+-n以数字格式显示端口号
+-t显示TCP连接的端口
+-u显示UDP连接的端口
+-l显示服务正在监听的端口信息，如httpd启动后，会一直监听80端口
+-p显示监听端口的服务名称是什么（也就是程序名称）
+
+
+*****************************************
+升级nginx软件
+1,先接开要升级的源码包
+2,cd 到源码包 用脚本安装软件包
+\--prefix=   //路径
+\--user=	 //用户
+\--group= 	//指定组
+\--with-http_ssl_module  //开启加密功能
+3,make    //源码编译,(注:不要用make install 否则会覆盖原来文件)
+4,用mv 该名原有的nginx 更改为其他名字备份
+5,cp objs下新版本的nginx 到默认路径下
+6,使用 "make upgrade" 命令更新 或着 "killall nginx" 杀死程序 再重新开启   (执行make upgrade 命令时要在新的软件包路径里)
+7,/usr/local/nginx/sbin/nginx –v  //查看版本是否更新
+
+
+*****************************************
+用户认证
+1,修改nginx的配置文件
+/usr/local/nginx/conf/nginx.conf
+server {
+        listen       80;      //监听端口
+        server_name  localhost; //域名
+        auth_basic "Input Password:";                        //认证提示符信息
+        auth_basic_user_file "/usr/local/nginx/pass";        //认证的密码文件
+        location / {
+            root   html;
+            index  index.html index.htm;
+        }		//读取文件的路径
+    }
+
+2,生产密码文件,创建用户密码
+yum -y install httpd-tools  //生成密码的文件,需要下载
+htpasswd -c /usr/local/nginx/pass   tom  
+new password:
+ //创建密码文件,和生成tom用户的密码 (注1:-c选项是新建文件,再添加用户是不要加-c,否则会新生成一个文件覆盖原来文件数据也会覆盖)(注2:创建的文件路径要于配置文件里面的填写的路径一至)
+
+3.重新加载配置
+/usr/local/nginx/sbin/nginx -s reload    //重新加载配置文件
+请先确保nginx是启动状态，否则运行该命令会报错,报错信息如下：[error] open() "/usr/local/nginx/logs/nginx.pid" failed (2: No such file or directory)
+
+*****************************************
+
+LNMP:  liunx  nginx mariadb  php
+
+mariadb 数据库		端口号:3306  启服务端
+mariadb-server 数据库服务端
+mariadb-devel 数据库依赖包
+
+php　解释器			
+php-mysql　扩展包
+php-fpm 服务 		端口号:9000   启服务端
+
+nginx
+如果用户访问静态,则直接返回
+如果用户访问动态,则转发给9000端口,执行脚本后返回
+location可以匹配用户的地址栏(从/开始)
+
+
+
+实现动态网站查看:
+一:查看php-fpm配置文件
+/etc/php-fpm.d/www.conf
+[www]
+listen = 127.0.0.1:9000            //PHP端口号
+pm.max_children = 32                //最大进程数量
+pm.start_servers = 15                //最小进程数量
+pm.min_spare_servers = 5            //最少需要几个空闲着的进程
+pm.max_spare_servers = 32            //最多允许几个进程处于空闲状态
+
+
+
+二:修改nginx的配置文件,重新加载
+/usr/local/nginx/con/nginx.conf
+location  ~  \.php$  {
+            root           html;
+            fastcgi_pass   127.0.0.1:9000;    #将请求转发给本机9000端口，PHP解释器
+            fastcgi_index  index.php;
+            #fastcgi_param   SCRIPT_FILENAME  $document_root$fastcgi_script_name;
+            include        fastcgi.conf;       #加载其他配置文件
+        }
+#(include: 表示读入)
+
+三:创建php页面,测试LNPM架构是否解析PHP页面
+
+1,创建php测试页面
+
+2,创建php测试页面,连接并查询Mariadb数据库
+[root@proxy ~]# vim /usr/local/nginx/html/mysql.php
+<?php
+$mysqli = new mysqli('localhost','root','密码','mysql');
+//注意：root为mysql数据库的账户名称，密码需要修改为实际mysql密码，无密码则留空即可
+//localhost是数据库的域名或IP，mysql是数据库的名称
+if (mysqli_connect_errno()){
+    die('Unable to connect!'). mysqli_connect_error();
+}
+$sql = "select * from user";
+$result = $mysqli->query($sql);
+while($row = $result->fetch_array()){
+    printf("Host:%s",$row[0]);
+    printf("</br>");
+    printf("Name:%s",$row[1]);
+    printf("</br>");
+}
+?>
+
+****
+LNMP常见问题
+Nginx的默认访问日志文件为/usr/local/nginx/logs/access.log
+Nginx的默认错误日志文件为/usr/local/nginx/logs/error.log
+PHP默认错误日志文件为/var/log/php-fpm/www-error.log
+如果动态网站访问失败，可用参考错误日志，查找错误信息。
+
+
+数据库创建用户
+grant all on *.* to '用户'@'主机名' identified by '密码' ;       //创建用户
+
+ 
+*****************************************
+地址重写
+1,所有访问a.html的请求，重定向到b.html;
+1)修改配置文件添加 
+rewrite /a.html /b.html;
+2)在nginx默认路径下创建b.html文件内容
+echo bbbbbbbbb > /usr/local/nginx/html/b.html
+3)重新加载nginx服务
+4)用客户端访问192.168.4.5/a.html 会自动跳转到     /b.html
+
+2.所有访问192.168.4.5的请求重定向至www.tmooc.cn；
+1)修改配置文件添加
+rewrite ^/  http://www.tmooc.cn/;
+2)重新加载nginx服务
+3)用客户端访问192.168.4.5 会自动跳转到http://www.tmooc.cn/网站中
+
+3.所有访问192.168.4.5/下面子页面，重定向至www.tmooc.cn/下相同的页面；
+1) 修改配置文件添加
+rewrite ^/(.*)  http://www.tmooc.cn/$1;
+2)重新加载nginx服务
+3)用客户端访问192.168.4.5/下面子页面,会跳转到http://www.tmooc.cn/下面的子页面
+
+
+4.实现firefox与curl访问相同页面文件，返回不同的内容。
+1)创建测试页面
+echo "I am Normal page" > /usr/local/nginx/html/test.html
+//创建curl测试页面
+mkdir -p /usr/local/nginx/html/firefox
+echo "firefox page" > /usr/local/nginx/html/firefox/test.html
+//创建Firefox测试页面
+
+2)修改配置文件内容,添加if判断
+if ($http_user_agent ~* firefox ) {
+rewrite /(.*) /firefox/$1;
+}
+
+3)重新加载nginx服务
+
+4)分别用curl 和 Firefox 访问 ,分别显示不同的页面内容
+
+
+**************************************
+
+
+一.实现后端web服务器
+
+二.配置nginx服务器,添加服务器池,实现反向代理功能
+1)修改配置文件/usr/local/nginx/conf/nginx.conf
+
+http {
+.. ..
+
+#使用upstream定义后端服务器集群，集群名称任意(如webserver)
+#使用server定义集群中的具体服务器和端口
+upstream webserver {
+                server 192.168.2.100:80;
+                server 192.168.2.200:80;
+        }
+.. ..
+server {
+        listen        80;
+        server_name  localhost;
+            location / {
+#通过proxy_pass将用户的请求转发给webserver集群
+            proxy_pass http://webserver;
+        }
+}
+#proxy_pass转发给webserver的优先级最高
+
+2)刷新nginx服务用客户端测试页面效果
+
+
+三.配置upstream服务器集群池属性
+
+weight可以设置后台服务器的权重
+max_fails可以设置后台服务器的失败次数fail_timeout可以设置后台服务器的失败超时时间。
+
+
+upstream webserver {
+                server 192.168.2.100 weight=1 max_fails=1 fail_timeout=30;
+                server 192.168.2.200 weight=2 max_fails=2 fail_timeout=30;
+                server 192.168.2.101 down;
+        }
+#weight设置服务器权重值，默认值为1
+#max_fails设置最大失败次数
+#fail_timeout设置失败超时时间，单位为秒
+#down标记服务器已关机，不参与集群调度
+
+然后重新加载nginx服务
+
+
+四.配置upstream服务器集群的调度算法
+1）设置相同客户端访问相同Web服务器
+upstream webserver {
+#通过ip_hash设置调度规则为：相同客户端访问相同服务器
+                 ip_hash;
+                server 192.168.2.100 weight=1 max_fails=2 fail_timeout=10;
+                server 192.168.2.200 weight=2 max_fails=2 fail_timeout=10;
+        }
+2)重新加载nginx服务,测试时会记录ip后会访问相同的web服务器
+
+******************************************
+
+一,部署支持4层TCP/UDP代理的Nginx服务器
+
+Nginx编译安装时需要使用--with-stream，开启ngx_stream_core_module模块
+
+yum -y install gcc pcre-devel openssl-devel        //安装依赖包
+tar  -xf   nginx-1.12.2.tar.gz
+cd  nginx-1.12.2
+./configure   \
+>--with-http_ssl_module    /加密功能              
+>--with-stream        //开启4层反向代理功能
+make && make install           //编译并安装
+
+二,配置Nginx服务器，添加服务器池，实现TCP/UDP反向代理功能
+1)修改配置文件
+stream {
+   upstream backend {
+   server 192.168.2.100:22;            //后端SSH服务器的IP和端口
+   server 192.168.2.200:22;
+}
+ server {
+  liste 12345;          //Nginx监听的端口
+  proxy_connect_timeout 1s;         //连接的超时时间，可选配置
+  proxy_timeout 3s;
+  proxy_pass backend;
+             }
+}
+
+2)重新加载nginx服务,用客户端ssh链接192.168.4.5会自动跳转到192.168.2.100或192.168.2.200.(注意在测试时ssh 要加 -p选项 确定转发的端口,不加端口时默认22链接到192.168.4.5服务机里)
+
+   如何查看服务器状态信息（非常重要的功能）
+
+1)编译安装时使用--with-http_stub_status_module开启状态页面模块
+
+./configure   \
+> --with-http_ssl_module  //开启SSL加密功能
+> --with-stream       //开启TCP/UDP代理模块
+> --with-http_stub_status_module  //开启status状态页面
+
+2）启用Nginx服务并查看监听端口状态
+
+3）修改Nginx配置文件，定义状态页面
+location /status {
+                stub_status on;
+                 #allow IP地址;
+                 #deny IP地址;
+        }
+
+
+
+
+
+tcp3次握手(一次握手,一次请求)
+一次握手,多次请求
+
+
+压力测试
+ab -c 100 -n 100 http://192.168.4.5/
+
+-c 人数   
+-n 总访问量
+
+
+  优化nginx并发量
+1）优化前使用ab高并发测试
+ab -n 2000 -c 2000 http://192.168.4.5/
+
+2）修改Nginx配置文件，增加并发量
+worker_processes  2;    //与CPU核心数量一致
+events {
+worker_connections 65535;        //每个worker最大并发连接数
+}
+
+3)优化Linux内核参数(最大文件数量)
+ ulimit -a            //查看所有属性值
+ulimit -Hn 100000    //设置硬限制（临时规则）
+ulimit -Sn 100000    //设置软限制（临时规则）
+
+vim /etc/security/limits.conf
+    .. ..
+*         soft    nofile            100000
+*         hard    nofile            100000
+#该配置文件分4列，分别如下：
+#用户或组    硬限制或软限制    需要限制的项目   限制的值
+
+4)优化后再用ab高并发测试
+
+
+  优化Nginx数据包头缓存
+ 1)优化前,使用脚本测试长头部请求是否能获得响应
+lnmp_soft/buffer.sh
+
+2)修改Nginx配置文件，增加数据包头部缓存大小
+vim /usr/local/nginx/conf/nginx.conf
+.. ..
+http {
+client_header_buffer_size    1k;        //默认请求包头信息的缓存    
+large_client_header_buffers  4 4k;      //大请求包头部信息的缓存个数与容量
+.. ..
+}
+
+3)优化后再用脚本测试是否能成功
+
+
+
+浏览器-------------------服务端
+app[固定的网站]
+
+浏览器本地缓存静态数据
+
+1）使用Firefox浏览器查看缓存
+以Firefox浏览器为例，在Firefox地址栏内输入about:cache将显示Firefox浏览器的缓存信息，如图-3所示，点击List Cache Entries可以查看详细信息。
+
+2）清空firefox本地缓存数据
+
+
+3）修改Nginx配置文件，定义对静态页面的缓存时间
+server {
+	listen 80;
+location ~* \.(jpg|mp3) {
+ 	expires   30d;
+}
+}
+
+添加定义静态页面的缓存类型和时间  location ~* \.(jpg|mp3) 为缓存的类型  expires   30d 为缓存保存的时间为30天
+
+4)重新加载观看Firefox jpg的文件类型后,再观看Firefox缓存的信息
+
+
+
+日志切割
+1. 把旧的日志重命名
+mv access.log access2.log
+
+2. kill USR1 PID(nginx的进程PID号)
+kill -USR1 $(cat /usr/local/nginx/logs/nginx.pid)
+
+kill  给某个进程传递一个信号
+kill -l 查看可以传递的信号
+kill 默认-15  (-15:表示杀死)
+-9    表示强制杀死
+-10	表示重新生成文件
+
+
+  对页面进行压缩处理
+修改Nginx配置文件
+http {
+.. ..
+gzip on;                      //开启压缩
+gzip_min_length 1000;        //小文件不压缩
+gzip_comp_level 4;           //压缩比率
+gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;
+                                    //对特定文件压缩，类型参考mime.types
+.. ..
+}
+
+
+服务器内存缓存
+http { 
+open_file_cache          max=2000  inactive=20s;
+        open_file_cache_valid    60s;
+        open_file_cache_min_uses 5;
+        open_file_cache_errors   off;
+//设置服务器最大缓存2000个文件句柄，关闭20秒内无请求的文件句柄
+//文件句柄的有效时间是60秒，60秒后过期
+//只有访问次数超过5次会被缓存
+} 
+ 
+
+
+
+
+ ./configure --with-http_ssl_module 
+--with-stream 
+--with-http_stub_status_module
+
+ 部署后端LNMP服务器相关软件
+
+1)下载相关安装包
+yum -y install 
+gcc   pcre-devel openssl-devel
+mariadb mariadb-server mariadb-devel
+php php-mysql php-fpm
+
+
+2)源码安装nginx
+./configure --with-http_ssl_module 
+--with-stream 
+--with-http_stub_status_module
+
+3)修改配置文件实现动态网页
+ location  ~  \.php$  {
+            root           html;
+            fastcgi_pass   127.0.0.1:9000;
+            fastcgi_index  index.php;
+           # fastcgi_param   SCRIPT_FILENAME  $document_root$fastcgi_script_name;
+            include        fastcgi.conf;
+        }
+
+4)启动服务
+/usr/local/nginx/sbin/nginx
+systemctl restart mariadb
+systemctl restart php-fpm
+
+5)做nginx的服务器反向服务
+
+
+
+
+概念：
+Session：存储在服务器端，保存用户名、登陆状态等信息。
+Cookies：由服务器下发给客户端，保存在客户端的一个文件里。
+保存的内容主要包括：SessionID。
+
+新登录
+1用户登录(u,p)
+2服务器验证身份
+3创建一个文件(session)[登录状态]
+4返回登录页面(cookie:文件名)
+5流量器显示页面
+保存cookie
+
+刷新后
+流量器发(cookie)给服务端验证
+
+
+memcached(内存,缓存数据库)
+没有数据库,没有数据表
+set 变量名=值
+
+
+/usr/lib/systemd/system 
+systemctl 命令调用的配置文件
+
+
+创建PHP页面，使用PHP语言测试memcached服务
+
+1）部署测试页面
+ vim /usr/local/nginx/html/mem.php
+<?php
+$memcache=new Memcache;                //创建memcache对象
+$memcache->connect('192.168.2.5',11211) or die ('could not connect!!');
+$memcache->set('key','test');             //定义变量
+$get_values=$memcache->get('key');        //获取变量值
+echo $get_values;
+?>
+
+2）客户端测试（结果会失败）
+这里因为没有给PHP安装扩展包，默认PHP无法连接memcached数据库，需要给PHP安装扩展模块才可以连接memcached数据库。
+
+3）为PHP添加memcache扩展
+yum -y install  php-pecl-memcache
+systemctl restart php-fpm
+
+4）客户端再次测试（结果会成功显示数据结果）
+
+
+
+在后端LNMP服务器上部署Session共享
+
+1）为PHP添加memcache扩展
+yum -y install  php-pecl-memcache
+
+
+2）修改PHP-FPM配置文件，并重启服务
+vim  /etc/php-fpm.d/www.conf      
+ //修改该配置文件的两个参数
+//文件的最后2行
+修改前效果如下:
+php_value[session.save_handler] = files
+php_value[session.save_path] = /var/lib/php/session
+//原始文件，默认定义Sessoin会话信息本地计算机（默认在/var/lib/php/session）
++++++++++++++++++++++++++++++++++++++++++
+修改后效果如下:
+php_value[session.save_handler] = memcache
+php_value[session.save_path] = "tcp://192.168.2.5:11211"
+//定义Session信息存储在公共的memcached服务器上，主机参数中为memcache（没有d）
+//通过path参数定义公共的memcached服务器在哪（服务器的IP和端口）
+
+3)重新刷新服务
+systemctl  restart  php-fpm
+
+
+
+
+部署Tomcat服务器软件
+1）使用RPM安装JDK环境
+yum -y install  java-1.8.0-openjdk      //安装JDK
+yum -y install java-1.8.0-openjdk-headless      //安装JDK
+java -version             //查看JAVA版本
+
+2）安装Tomcat
+
+3）启动服务
+/usr/local/tomcat/bin/startup.sh
+
+4）服务器验证端口信息
+netstat -nutlp |grep java        //查看java监听的端口
+tcp        0     0 :::8080              :::*                LISTEN      2778/java 
+tcp        0      0 :::8009              :::*                LISTEN      2778/java                     
+tcp        0      0 ::ffff:127.0.0.1:8005     :::*         LISTEN       2778/java 
+
+提示：如果检查端口时，8005端口启动非常慢，默认tomcat启动需要从/dev/random读取大量的随机数据，默认该设备生成随机数据的速度很慢，可用使用下面的命令用urandom替换random（非必须操作）。
+mv /dev/random  /dev/random.bak
+ln -s /dev/urandom  /dev/random
+
+5）客户端浏览测试页面
+firefox http://192.168.2.100:8080
+
+
+修改Tomcat配置文件
+1）创建测试JSP页面
+vim  /usr/local/tomcat/webapps/ROOT/test.jsp
+<html>
+<body>
+<center>
+Now time is: <%=new java.util.Date()%>     //显示服务器当前时间
+</center>
+</body>
+</html>
+
+2)客户端浏览测试页面
+firefox http://192.168.2.100:8080/test.jsp
+
+
+
+使用Tomcat部署虚拟主机
+
+
+配置服务器虚拟主机
+1）修改server.xml配置文件，创建虚拟主机
+vim /usr/local/tomcat/conf/server.xml
+… …
+<Host name="www.a.com" appBase="a" unpackWARS="true" autoDeploy="true">
+</Host>
+<Host name="www.b.com" appBase="b" unpackWARS="true" autoDeploy="true">
+</Host>
+
+(注:在添加是有<Host>开头的要添加</Host>为你结尾
+还有java配置文件严格要求大小写区分)
+
+
+2）创建虚拟主机对应的页面根路径
+mkdir -p  /usr/local/tomcat/{a,b}/ROOT
+echo "AAA"   > /usr/local/tomcat/a/ROOT/index.html
+echo "BBB" > /usr/local/tomcat/b/ROOT/index.html
+
+3)重启tomcat服务器
+/usr/local/tomcat/bin/shutdown.sh
+/usr/local/tomcat/bin/startup.sh
+
+4)客户端设置host文件进行域名解析,再用浏览测试
+vim /etc/hosts
+… …
+192.168.2.100      www.a.com  www.b.com
+firefox http://www.a.com:8080/      //注意访问的端口为8080
+firefox http://www.b.com:8080/
+
+
+修改www.b.com网站的首页目录为base
+1）使用docBase参数可以修改默认网站首页路径
+vim /usr/local/tomcat/conf/server.xml
+<Host name="www.b.com" appBase="b" unpackWARS="true" autoDeploy="true">
+<Context path="" docBase="base"/>
+</Host>
+
+2)在b下面新建base的目录,在base新建测试网页的内容
+mkdir  /usr/local/tomcat/b/base
+echo "BASE" > /usr/local/tomcat/b/base/index.html
+/usr/local/tomcat/bin/shutdown.sh
+/usr/local/tomcat/bin/startup.sh
+
+3)测试查看页面是否正确
+firefox http://www.b.com:8080/
+
+
+跳转
+1）当用户访问http://www.a.com/test打开/var/www/html目录下的页面
+vim /usr/local/tomcat/conf/server.xml
+<Host name="www.a.com" appBase="a" unpackWARS="true" autoDeploy="true">
+<Context path="/test" docBase="/var/www/html/" />
+</Host>
+(跳转页面可以有多个,不影响工作)
+
+2)重新刷新tomcat服务
+/usr/local/tomcat/bin/shutdown.sh
+/usr/local/tomcat/bin/startup.sh
+
+3)客户端检查页面
+firefox http://www.a.com:8080/test 
+(注意访问是要添加8080端口)
+
+
+
+
+配置Tomcat支持SSL加密网站
+1）创建加密用的私钥和证书文件
+ keytool -genkeypair -alias tomcat -keyalg RSA -keystore /usr/local/tomcat/keystore              
+//提示输入密码为:123456
+//-genkeypair     生成密钥对
+//-alias tomcat     密钥别名
+//-keyalg RSA     定义密钥算法为RSA算法
+//-keystore         定义密钥文件存储在:/usr/local/tomcat/keystore
+
+2)再次修改server.xml配置文件，创建支持加密连接的Connector
+vim /usr/local/tomcat/conf/server.xml
+<Connector port="8443" protocol="org.apache.coyote.http11.Http11NioProtocol"
+maxThreads="150" SSLEnabled="true" scheme="https" secure="true"
+keystoreFile="/usr/local/tomcat/keystore" keystorePass="123456" clientAuth="false" sslProtocol="TLS" />
+//备注，默认这段Connector被注释掉了，打开注释，添加密钥信息即可
+
+3）重启Tomcat服务器
+
+4) 浏览测试页面进行测试
+firefox https://www.a.com:8443/
+firefox https://www.b.com:8443/
+firefox https://192.168.2.100:8443/
+
+(注配置文件只要做一个加密,tomcat所有的网站都会加密,加密的端口号:8443)
+
+
+
+/usr/local/tomcat/conf/server.xml配置文件
+Host name="www.a.com"  //域名
+appBase="a" 		 //访问的目录
+unpackWARS="true"	//开启自动接war包
+autoDeploy="true" 	//开启自动配置
+Context path=""		//访问目录时跳转到后面的目录
+docBase="base" 		//读取的目录(默认为ROOT)
+
+
+
+
+
+构建Web服务器
+1）使用yum安装web软件包
+2）启用httpd服务（注意需要关闭nginx，否则端口冲突）
+3）为Web访问建立测试文件
+4）测试页面是否正常
+
+
+部署Varnish缓存服务器
+1）编译安装软件
+yum -y install gcc readline-devel    //安装软件依赖包
+yum -y install ncurses-devel         //安装软件依赖包
+yum -y install pcre-devel            //安装软件依赖包
+yum -y install python-docutils         //安装软件依赖包
+useradd -s /sbin/nologin varnish   
+   //创建账户
+tar -xf varnish-5.2.1.tar.gz
+cd varnish-5.2.1
+./configure
+make && make install
+
+2）复制启动脚本及配置文件（注意相对路径与绝对路径）
+ cp  etc/example.vcl   /usr/local/etc/default.vcl
+
+3）修改代理配置文件
+vim  /usr/local/etc/default.vcl
+backend default {
+     .host = "192.168.2.100";
+     .port = "80";		
+ }
+//后台服务器
+
+4）启动服务
+varnishd  -f /usr/local/etc/default.vcl
+//varnishd命令的其他选项说明如下：
+//varnishd -s malloc,128M                定义varnish使用内存作为缓存，空间为128M
+//varnishd -s file,/var/lib/varnish_storage.bin,1G
+定义varnish使用文件作为缓存
+
+5）客户端开启浏览器访问
+[root@client ~]# curl http://192.168.4.5
+
+
+其他操作
+1）查看varnish日志
+varnishlog          //varnish日志varnishncsa        //访问日志
+输出命令是没有东西,需要客户端访问才有信息,varnishlog是详细信息 varnishncsa是简短信息
+
+2）更新缓存数据，在后台web服务器更新页面内容后，用户访问代理服务器看到的还是之前的数据，说明缓存中的数据过期了需要更新（默认也会自动更新，但非实时更新）。
+varnishadm  
+varnish> ban req.url ~ .*
+//清空缓存数据，支持正则表达式
+
+
+部署Git服务器
+1）YUM安装Git软件
+yum -y install git
+git --version
+
+2)初始化一个空仓库。
+mkdir /var/git			//创建一个空的目录
+git init /var/git/project --bare 
+//用命令创建一个空仓库   (空仓库里面有配置文件)
+ls /var/git/project
+config  description  HEAD  hooks  info  objects  refs
+
+
+客户端测试
+1) clone克隆服务器仓库到本地。
+yum -y install git
+git clone root@192.168.2.100:/var/git/project 	//克隆服务器仓库到本地
+cd project
+ls 
+
+2)修改git配置
+ cat ~/.gitconfig 
+[user]
+    email = you@example.com
+    name = Your Name
+//可后期在做
+
+
+3) 本地工作区对数据进行增删改查(必须要先进入仓库再操作数据)。
+echo "init date" > init.txt
+mkdir demo
+cp /etc/hosts demo
+
+4)查看仓库中数据的状态。
+ git status
+
+5） 将工作区的修改提交到暂存区
+git add .
+
+6) 将暂存区修改提交到本地仓库。
+git commit  -m  "注释，可以为任意字符"
+git status
+
+7） 将本地仓库中的数据推送到远程服务器
+git config --global push.default simple
+git push
+root@192.168.2.100's password:  输入服务器root密码
+
+8) 将服务器上的数据更新到本地（web1的数据更新到web2）。
+备注：可能其他人也在修改数据并提交服务器，就会导致自己的本地数据为旧数据，使用pull就可以将服务器上新的数据更新到本地。
+ git pull
+
+9) 查看版本日志。
+git log				//详细的日志信息
+git log --pretty=oneline //显示简短日志信息
+git log --oneline		//显示简短日志信息
+git reflog				//显示简短日志信息
+
+
+
+HEAD指针基本操作
+1）准备工作（多对数据仓库进行修改、提交操作，以产生多个版本）
+
+2) 查看Git版本信息。
+git log --oneline
+
+3）移动HEAD指针，将数据还原到任意版本。
+提示：当前HEAD指针为HEAD@{0}。
+git reflog			//查看日志信息
+git reset --hard 301c0	//移动HEAD到 301c0的版本号前
+
+
+clone	将远程服务器的仓库克隆到本地
+config	修改git配置
+add		添加修改到暂存区
+commit	提交修改到本地仓库
+push	提交修改到远程服务器
+
+
+
+常见的分支规范如下：
+MASTER分支（MASTER是主分支，是代码的核心）。
+DEVELOP分支（DEVELOP最新开发成果的分支）。
+RELEASE分支（为发布新产品设置的分支）。
+HOTFIX分支（为了修复软件BUG缺陷的分支）。
+FEATURE分支（为开发新功能设置的分支）。
+
+查看并创建分支
+1)查看当前分支
+git status
+git branch -v   	查看当前分支
+
+2)创建分支
+git branch hotfix	//创建hotfix分支(修复软件BUG缺陷的分支)
+git branch feature	//创建feature分支(为开发新功能设置的分支)
+git branch -v		//查看当前分支
+
+切换与合并分支
+1)切换分支
+git checkout hotfix		//切换到hotfix分支
+git branch -v			//查看当前分支 
+
+2）在新的分支上可以继续进行数据操作（增、删、改、查）
+echo "fix a bug" >> new.txt
+git add .
+git commit -m "fix a bug"
+
+3)将hotfix修改的数据合并到master分支。
+注意，合并前必须要先切换到master分支，然后再执行merge命令
+git checkout master  //切换到master分支
+cat new.txt  		//查看内容
+git merge hotfix 	//合并hotfix的内容到master分支里
+
+4）将所有本地修改提交远程服务器。
+git push
+
+
+解决版本分支的冲突问题
+1）在不同分支中修改相同文件的相同行数据，模拟数据冲突。
+git checkout hotfix
+echo aaa > a.txt
+git add .
+git commit -m "add a.txt by hotfix"
+
+git checkout master
+echo bbb > a.txt
+git add .
+git commit -m "add a.txt by master"
+git merge hotfix
+//会产生冲突
+
+2）查看有冲突的文件内容，修改文件为最终版本的数据，解决冲突。
+vim a.txt      #修改该文件，为最终需要的数据，解决冲突
+BBB
+ git add .
+ git commit -m "resolved"
+
+
+
+
+
+
+SSH协议服务器（支持读写操作）
+1）创建基于密码验证的SSH协议服务器（web1主机操作）。
+git init --bare /var/git/base_ssh
+
+2)客户端访问的方式（web2主机操作）。
+git clone root@192.168.2.100:/var/git/base_ssh
+
+3）客户端生成SSH密钥，实现免密码登陆git服务器（web2主机操作）
+ssh-keygen -f /root/.ssh/id_rsa -N ''
+ssh-copy-id  192.168.2.100
+git clone root@192.168.2.100:/var/git/base_ssh
+git push
+
+
+Git协议服务器（只读操作的服务器）
+1）安装git-daemon软件包（web1主机操作）
+yum -y install git-daemon
+
+2）创建版本库（web1主机操作）。
+git init --bare /var/git/base_git
+
+3）修改配置文件，启动git服务（web1主机操作）。
+vim /usr/lib/systemd/system/git@.service
+修改前内容如下：
+ExecStart=-/usr/libexec/git-core/git-daemon --base-path=/var/lib/git 
+--export-all --user-path=public_git --syslog --inetd –verbose
+修改后内容如下：
+ExecStart=-/usr/libexec/git-core/git-daemon --base-path=/var/git 
+--export-all --user-path=public_git --syslog --inetd –verbose
+[root@web1 ~]# systemctl  start  git.socket
+
+4）客户端访问方式（web2主机操作）
+git clone git://192.168.2.100/base_git
+
+
+
+HTTP协议服务器（只读操作的服务器）
+1）安装gitweb、httpd软件包（web1主机操作）。
+yum -y install httpd gitweb
+
+2）修改配置文件，设置仓库根目录（web1主机操作）。
+vim +11 /etc/gitweb.conf 
+$projectroot = "/var/git";      #添加一行
+
+3) 创建版本仓库（web1主机操作）
+git init --bare /var/git/base_http
+
+4）启动httpd服务器
+systemctl start httpd
+
+5）客户端访问方式（web2主机操作）
+firefox http://192.168.2.100/git/
+
+
+制作nginx的RPM包
+
+安装rpm-build软件
+1）安装rpm-build软件包
+yum -y install  rpm-build
+
+2）生成rpmbuild目录结构
+rpmbuild -ba nginx.spec //会报错，没有文件或目录
+ls /root/rpmbuild      //自动生成的目录结构
+BUILD  BUILDROOT  RPMS  SOURCES  SPECS  SRPMS
+(也可以自己用mkdir自己创建)
+
+3）准备工作，将源码软件复制到SOURCES目录
+cp nginx-1.12.2.tar.gz /root/rpmbuild/SOURCES/
+
+4）创建并修改SPEC配置文件
+vim /root/rpmbuild/SPECS/nginx.spec 
+Name:nginx              #源码包软件名称
+Version:1.12.2         #源码包软件的版本号
+Release:10             #制作的RPM包版本号
+Summary: Nginx is a web server software.            #RPM软件的概述    
+License:GPL       #软件的协议                            
+URL:www.test.com        #网址
+Source0:nginx-1.12.2.tar.gz   #源码包文件的全称
+#BuildRequires:       #制作RPM时的依赖关系
+#Requires:            #安装RPM时的依赖关系
+%description
+nginx [engine x] is an HTTP and reverse proxy server.    #软件的详细描述
+%post
+useradd nginx    #非必需操作：安装后脚本(创建账户)
+%prep
+%setup -q                                #自动解压源码包，并cd进入目录
+%build
+./configure --with-stream
+make %{?_smp_mflags}
+%install
+make install DESTDIR=%{buildroot}
+%files
+%doc
+/usr/local/nginx/*    #对哪些文件与目录打包
+%changelog
+
+
+使用配置文件创建RPM包
+1）安装依赖软件包
+yum -y install  gcc  pcre-devel openssl-devel
+
+2）rpmbuild创建RPM软件包
+rpmbuild -ba /root/rpmbuild/SPECS/nginx.spec
+ls /root/rpmbuild/RPMS/x86_64/nginx-1.12.2-10.x86_64.rpm
+
+
+
+配置GRE VPN
+步骤一：启用GRE模块（client和proxy都需要操作）
+1）查看计算机当前加载的模块
+lsmod                      //显示模块列表
+lsmod  | grep ip_gre //确定是否加载了gre模块
+
+2)加载模块ip_gre
+modprobe  ip_gre
+
+3）查看模块信息
+modinfo ip_gre
+filename:       /lib/modules/3.10.0-693.el7.x86_64/kernel/net/ipv4/ip_gre.ko.xz 		//文件路径
+
+
+步骤二：Client主机创建VPN隧道
+1）创建隧道
+ip tunnel add tun0  mode gre \ 
+>  remote 201.1.2.5 local 201.1.2.10
+//ip tunnel add创建隧道（隧道名称为tun0），ip tunnel help可以查看帮助
+//mode设置隧道使用gre模式
+//local后面跟本机的IP地址，remote后面是与其他主机建立隧道的对方IP地址
+
+2）启用该隧道（类似与设置网卡up）
+ip link show			//查看状态
+ip link set tun0 up         //设置UP
+ip link show		
+
+3）为VPN配置隧道IP地址
+ip addr add 10.10.10.10/24 peer 10.10.10.5/24 \
+>  dev tun0
+//为隧道tun0设置本地IP地址（10.10.10.10.10/24）
+//隧道对面的主机IP的隧道IP为10.10.10.5/24
+ip a s                    //查看IP地址
+
+4）关闭防火墙
+firewall-cmd --set-default-zone=trusted
+
+在proxy主机上创建VPN隧道 通以上同命令ip地址相反
+
+
+echo "1" > /proc/sys/net/ipv4/ip_forward
+//开启路由转发功能(1是开启路由器功能 0是关闭路由器功能"文本只能用echo来修改 ,vim修改会报错")
+
+
+创建PPTP VPN
+步骤一：部署VPN服务器
+1）安装软件包（软件包参考lnmp_soft）
+yum -y install pptpd-1.4.0-2.el7.x86_64.rpm
+rpm -qc pptpd
+	/etc/ppp/options.pptpd	
+	/etc/pptpd.conf
+	/etc/sysconfig/pptpd
+
+2)修改配置文件
+vim /etc/pptpd.conf		//修改分配ip
+.. ..
+localip 201.1.2.5         服务器本地IP
+remoteip 192.168.3.1-50  分配给客户端的IP池
+
+vim /etc/ppp/options.pptpd
+require-mppe-128       //使用MPPE加密数据
+ms-dns 8.8.8.8   //DNS服务器(分配客户端dns)
+
+vim /etc/ppp/chap-secrets            //修改账户配置文件
+jacob      *        123456      *
+//用户名    服务器标记      密码             客户端
+
+echo "1" > /proc/sys/net/ipv4/ip_forward    //开启路由转发
+
+3）启动服务
+systemctl start pptpd
+systemctl enable pptpd
+firewall-cmd --set-default-zone=trusted
+
+4）翻墙设置（非必需操作）
+ iptables -t nat -A POSTROUTING -s 192.168.3.0/24 \
+>  -j SNAT --to-source 201.1.2.5
+
+步骤二：客户端设置
+
+
+创建L2TP+IPSec VPN
+步骤一：部署IPSec服务
+1）安装软件包
+yum -y install libreswan
+
+2)新建IPSec密钥验证配置文件
+tail -1 /etc/ipsec.conf //仅查看一下该主配置文件
+include /etc/ipsec.d/*.conf 	//加载该目录下的所有配置文件
+vim /etc/ipsec.d/myipsec.conf 
+//新建该文件，参考lnmp_soft/vpn/myipsec.conf
+
+3)创建IPSec预定义共享密钥
+tail -1 /etc/ipsec.secrets  //仅查看，不要修改该文件
+include /etc/ipsec.d/*.secrets
+
+vim /etc/ipsec.d/mypass.secrets        //新建该文件
+201.1.2.10  %any: PSK "randpass"         //randpass为预共享密钥
+                              //201.1.2.10是VPN服务器的IP
+
+4)启动IPSec服务
+systemctl start ipsec        
+netstat -ntulp |grep pluto //端口4500,500
+
+
+步骤二：部署XL2TP服务
+1）安装软件包（软件包参考lnmp_soft）
+yum localinstall xl2tpd-1.3.8-2.el7.x86_64.rpm
+
+2) 修改xl2tp配置文件（修改3个配置文件的内容）
+ vim  /etc/xl2tpd/xl2tpd.conf      //修改主配置文件
+[lns default]
+.. ..
+iprange = 192.168.3.128-192.168.3.254       分配给客户端的IP池
+localip = 201.1.2.10      VPN服务器的IP地址
+
+vim /etc/ppp/options.xl2tpd      //认证配置
+require-mschap-v2    //添加一行，强制要求认证
+#crtscts               注释或删除该行
+#lock                  注释或删除该行
+
+vim /etc/ppp/chap-secrets    //修改密码文件
+jacob   *       123456  *                //账户名称   服务器标记   密码   客户端IP
+
+3）启动服务
+systemctl start xl2tpd
+netstat  -ntulp |grep xl2tpd 	//端口1701
+
+4）设置路由转发，防火墙
+echo "1" > /proc/sys/net/ipv4/ip_forward
+firewall-cmd --set-default-zone=trusted
+
+5）翻墙设置（非必需操作）
+iptables -t nat -A POSTROUTING -s 192.168.3.0/24 \
+>  -j SNAT --to-source 201.1.2.10
+
+
+步骤三：客户端设置
+
+
+
+NTP时间同步
+Stratum层的总数限制在15以内（包括15）。
+
+步骤一：部署NTP服务
+1）安装软件包
+yum -y install chrony
+rpm -qc chrony         //查看配置文件列表
+/etc/chrony.conf
+/etc/chrony.keys
+
+2)修改配置文件
+cat /etc/chrony.conf
+.. ..
+server 0.centos.pool.ntp.org iburst    //server用户客户端指向上层NTP服务器
+allow 192.168.4.0/24      //允许那个IP或网络访问NTP
+#deny  192.168.4.1    //拒绝那个IP或网络访问NTP
+local stratum 10      //设置NTP服务器的层数量
+
+3)启动NTP服务
+systemctl  restart  chronyd
+systemctl  enable   chronyd
+
+4)设置防火墙
+firewall-cmd --set-default-zone=trusted
+
+步骤二：配置客户端
+1）安装软件包
+yum -y install chrony
+
+2) 修改配置文件
+vim /etc/chrony.conf
+server 192.168.4.5 iburst   //设置与哪台服务器同步数据
+    //iburst参数设置重启服务后尽快同步时间
+
+3) 将客户端时间修改为错误的时间
+date  -s  "hour:minute"     //调整时间（小时：分钟）
+date                 //查看修改后的时间
+
+4) 重启chrony与服务器同步时间
+systemctl  restart  chronyd
+
+5) 确认时间是否已经同步
+date                //多执行几次查看结果
+
+******************************************
+什么是集群
+1.一组通过高速网络互联的计算组,并以单一系统的模式加以管理
+2.将很多服务器集中起来一起,提供同一种服务,在客户端看来就像是只有一个服务器
+3.可以在付出较低成本的情况下获得在性能,可靠性,灵活性方面的相对较高的收益
+4.任务调度是集群系统中的核心技术
+
+集群目的
+提高性能
+	-如计算密集型应用,如:天气预报,核实验模拟
+降低成本
+	-相对百万美元级的超级计算机,价格便宜
+提高可扩展性
+	-只要增加集群节点即可
+增强可靠性
+	-多个节点完成相同功能,避免单点失败
+
+集群的分类
+高性能计算集群HPC
+	-通过以集群开发的并行应用程序,解决复杂的科学问题
+负载均衡(LB)集群
+	-客户端负载在计算机集群中尽可能平均分摊
+高可用(HA)集群
+	-避免单点故障,当一个系统发生故障时,可以快速迁移
+
+
+LVS
+LVS可以实现高可用的,可伸缩的Web,Mail,Cache和Media等网络服务
+
+最终目标是利用Linux操作系统和LVS集群软件实现一个高可用,高性能,低成本的服务器应用集群
+
+LVS集群组成
+前端:负载均衡层
+	-由一台或多台负载调度器构成
+中间:服务器群组层
+	-由一组实际运行应用服务的服务器组成
+底端:数据共享存储层
+	-提供共享存储空间的存储区域
+
+LVS术语
+Director Server : 调度服务器
+	-将负载分发到Real Server的服务器
+Real Server : 真实服务器
+	-真正提供应用服务的服务器
+VIP : 虚拟IP地址
+	-公布给用户访问的虚拟IP地址
+RIP : 真实IP地址
+	-集群节点上使用的IP地址
+DIP : 调度器连接节点服务器的IP地址
+
+LVS工作模式
+VS/NAT
+	-通过网络地址转换实现的虚拟服务器
+	-大并发访问时,调度器的性能成为瓶颈
+VS/DR
+	-直接使用路由技术实现虚拟服务器
+	-节点服务器需要配置VIP,注意MAC地址广播
+VS/TUN
+	-通过隧道方式实现虚拟服务器
+
+负载均衡调度算法
+LVS目前实现了10种调度算法
+常用的有
+rr 		轮询			将客户端请求平均分发到Real Server
+wrr		加权轮询		根据Real Server权重值进行轮询调度
+lc 		最少链接		选择连接数最少的服务器
+wcl		加权最少连接	根据Real Server权重值,选		
+					择链接数最少的服务器
+sh		(与nginx的ip_bash相同的功能)
+		(根据请求的目标IP地址,作为散列键(Hash Key)
+		从静态分配的散列表找出对应的服务器)
+
+ipvsadm用法
+创建虚拟服务器
+-A		添加虚拟服务器
+-t		设置群集地址(VIP,Virtual IP)
+-s		指定负载调度算法
+例: ipvsadm -A -t 172.16.16.172:80 -s rr
+
+ipvsadm用法
+添加,删除服务器节点
+-a		添加真实服务器
+-d		删除真实服务器
+-r		指定真实服务器(Real Server)的地址
+-m		使用NAT模式; -g -i 分别对应DR,TUN模式
+-w		为节点服务器设置权重,默认为1
+例: ipvsadm -a -t 172.16.16.172:80 -r 192.168.7.21:80 -m
+ipvsadm -d -t 172.16.16.172:80 -r 172.16.16.172:80
+
+ipvsadm -Ln   //查看IPVS
+
+
+
+部署LVS-NAT集群
+步骤一：配置基础环境
+1）设置Web服务器（以web1为例）
+yum -y install httpd
+echo "192.168.2.100" > /var/www/html/index.html
+
+2）启动Web服务器软件
+systemctl restart httpd
+
+3)关闭防火墙与SELinux
+systmctl stop firewalld
+setenforce 0
+
+步骤二：部署LVS-NAT模式调度器
+1)确认调度器的路由转发功能(如果已经开启，可以忽略)
+echo 1 > /proc/sys/net/ipv4/ip_forward
+cat /proc/sys/net/ipv4/ip_forward
+1
+echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf    #修改配置文件，设置永久规则
+
+2）创建集群服务器
+yum -y install ipvsadm
+ipvsadm -A -t 192.168.4.5:80 -s wrr
+
+3）添加真实服务器
+ipvsadm -a -t 192.168.4.5:80 -r 192.168.2.100 -w 1 -m
+ipvsadm -a -t 192.168.4.5:80 -r 192.168.2.200 -w 1 -m
+
+4）查看规则列表，并保存规则
+ipvsadm -Ln
+ipvsadm-save -n > /etc/sysconfig/ipvsadm
+
+步骤三：客户端测试
+客户端使用curl命令反复连接http://192.168.4.5，查看访问的页面是否会轮询到不同的后端真实服务器。
+
+
+
+部署LVS-DR集群
+步骤一：配置实验网络环境
+1）设置Proxy代理服务器的VIP和DIP
+注意：为了防止冲突，VIP必须要配置在网卡的虚拟接口！！！
+cd /etc/sysconfig/network-scripts/
+cp ifcfg-eth0 ifcfg-eth0:0
+vim ifcfg-eth0:0
+TYPE=Ethernet  		//以太网
+BOOTPROTO=none		//是否开启dhcp模式
+DEFROUTE=yes		//默认路由
+NAME=eth0:0			//网卡名
+DEVICE=eth0:0		//网卡名
+ONBOOT=yes			//开机激活
+IPADDR=192.168.4.15	//网卡ip	
+PREFIX=24			//子网掩码
+
+systemctl restart network
+
+
+2）设置Web1服务器网络参数
+nmcli connection modify eth0 ipv4.method manual ipv4.addresses 192.168.4.100/24 connection.autoconnect yes
+nmcli connection up eth0
+
+接下来给web1配置VIP地址。
+注意：这里的子网掩码必须是32（也就是全255），网络地址与IP地址一样，广播地址与IP地址也一样。
+cd /etc/sysconfig/network-scripts/
+cp ifcfg-lo{,:0}
+vim ifcfg-lo:0
+DEVICE=lo:0					//网卡名
+IPADDR=192.168.4.15			//伪装ip
+NETMASK=255.255.255.255		//子网掩码
+NETWORK=192.168.4.15		//网络位
+BROADCAST=192.168.4.15		//广播
+ONBOOT=yes					//开机自启
+NAME=lo:0					//网卡名
+
+防止地址冲突的问题：
+这里因为web1也配置与代理一样的VIP地址，默认肯定会出现地址冲突；
+sysctl.conf文件写入这下面四行的主要目的就是访问192.168.4.15的数据包，只有调度器会响应，其他主机都不做任何响应，这样防止地址冲突的问题。
+ vim /etc/sysctl.conf
+#手动写入如下4行内容
+net.ipv4.conf.all.arp_ignore = 1
+net.ipv4.conf.lo.arp_ignore = 1
+net.ipv4.conf.lo.arp_announce = 2
+net.ipv4.conf.all.arp_announce = 2
+#当有arp广播问谁是192.168.4.15时，本机忽略该ARP广播，不做任何回应
+#本机不要向外宣告自己的lo回环地址是192.168.4.15
+[root@web1 ~]# sysctl -p
+
+重启网络服务，设置防火墙与SELinux
+systemctl restart network
+ifconfig
+
+常见错误：如果重启网络后未正确配置lo:0，有可能是NetworkManager和network服务有冲突，关闭NetworkManager后重启network即可。（非必须的操作）
+systemctl stop NetworkManager
+systemctl restart network
+
+
+接下来给web2配置VIP地址(于web1一样)
+
+
+步骤二：proxy调度器安装软件并部署LVS-DR模式调度器
+1）安装软件（如果已经安装，此步骤可以忽略）
+yum -y install ipvsadm
+
+2）清理之前实验的规则，创建新的集群服务器规则
+ipvsadm -C                  #清空所有规则
+ipvsadm -A -t 192.168.4.15:80 -s wrr
+
+3）添加真实服务器(-g参数设置LVS工作模式为DR模式，-w设置权重)
+ipvsadm -a -t 192.168.4.15:80 -r 192.168.4.100 -g -w 1
+ipvsadm -a -t 192.168.4.15:80 -r 192.168.4.200 -g -w 1
+
+4）查看规则列表，并保存规则
+ ipvsadm -Ln
+TCP  192.168.4.15:80 wrr
+  -> 192.168.4.100:80             Route   1      0          0         
+  -> 192.168.4.200:80             Route   1      0          0
+
+
+扩展知识：默认LVS不带健康检查功能，需要自己手动编写动态检测脚本，实现该功能：(参考脚本如下，仅供参考)
+vim check.sh
+#!/bin/bash
+VIP=192.168.4.15:80
+RIP1=192.168.4.100
+RIP2=192.168.4.200
+while :
+do
+   for IP in $RIP1 $RIP2
+   do
+           curl -s http://$IP &>/dev/vnull
+if [ $? -eq 0 ];then
+            ipvsadm -Ln |grep -q $IP || ipvsadm -a -t $VIP -r $IP
+        else
+             ipvsadm -Ln |grep -q $IP && ipvsadm -d -t $VIP -r $IP
+        fi
+   done
+sleep 1
+done
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
